@@ -64,4 +64,9 @@ After a run, see `reports/`:
 
 ## CI
 
-_Coming next: GitHub Actions workflow (smoke on PR, nightly regression, reports as artifacts)._
+[![E2E tests](https://github.com/mykhailovskyidv-spec/saucedemo-e2e/actions/workflows/e2e.yml/badge.svg)](https://github.com/mykhailovskyidv-spec/saucedemo-e2e/actions/workflows/e2e.yml)
+
+- **Push / PR:** `@smoke` suite in Chromium
+- **Nightly:** full `@regression` suite in Chromium, Firefox and WebKit (matrix)
+- **Manual:** any tag expression and browser via "Run workflow"
+- Reports (HTML + screenshots) are uploaded as artifacts; results are published as a GitHub check
