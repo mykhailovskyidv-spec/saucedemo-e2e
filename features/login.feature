@@ -10,7 +10,7 @@ Feature: Login
   @smoke
   Scenario: Successful login with valid credentials
     When I log in as "standard" user
-    Then I should see the "Productz" page
+    Then I should see the "Products" page
 
   @regression
   Scenario: Locked out user cannot log in
