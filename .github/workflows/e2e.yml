@@ -1,0 +1,123 @@
+name: E2E tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 3 * * *'            # every night, 03:00 UTC (05:00 Kyiv in winter)
+  workflow_dispatch:                # "Run workflow" button in the Actions tab
+    inputs:
+      tags:
+        description: 'Cucumber tags, e.g. @smoke, @cart, @regression and not @wip'
+        required: true
+        default: '@smoke'
+      browser:
+        description: 'Browser'
+        type: choice
+        options: [chromium, firefox, webkit]
+        default: chromium
+
+permissions:
+  contents: read
+  checks: write                     # needed to publish test results
+
+jobs:
+  # Fast feedback: push / PR / manual run
+  tests:
+    name: Tests (${{ inputs.tags || '@smoke' }}, ${{ inputs.browser || 'chromium' }})
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: true
+      TAGS: ${{ inputs.tags || '@smoke' }}
+      BROWSER: ${{ inputs.browser || 'chromium' }}
+      SAUCE_PASSWORD: ${{ secrets.SAUCE_PASSWORD }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps "$BROWSER"
+
+      - name: Run tests
+        run: npx cucumber-js --tags "$TAGS"
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v3
+        with:
+          name: Results (${{ env.TAGS }}, ${{ env.BROWSER }})
+          path: reports/junit.xml
+          reporter: java-junit
+          fail-on-empty: false
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: report-${{ env.BROWSER }}
+          path: reports/
+          retention-days: 14
+
+  # Nightly cross-browser regression
+  regression:
+    name: Regression (${{ matrix.browser }})
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false              # a webkit failure does not cancel chromium
+      matrix:
+        browser: [chromium, firefox, webkit]
+    env:
+      CI: true
+      BROWSER: ${{ matrix.browser }}
+      SAUCE_PASSWORD: ${{ secrets.SAUCE_PASSWORD }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps "$BROWSER"
+
+      - name: Run regression
+        run: npm run test:regression
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v3
+        with:
+          name: Regression results (${{ matrix.browser }})
+          path: reports/junit.xml
+          reporter: java-junit
+          fail-on-empty: false
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: regression-report-${{ matrix.browser }}
+          path: reports/
+          retention-days: 14
